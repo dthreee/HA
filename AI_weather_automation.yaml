@@ -1,0 +1,66 @@
+alias: AI Weather
+description: ChatGPT reads weather report, based on timeframe in the conversation prompt
+trigger:
+  - platform: conversation
+    command:
+      - What is the weather {my_timeframe}
+      - Tell me {my_timeframe} weather
+      - What is {my_timeframe} weather
+      - Weather {my_timeframe}
+      - "{my_timeframe} weather"
+condition: []
+action:
+  - if:
+      - condition: or
+        conditions:
+          - condition: template
+            value_template: "{{ 'today' in trigger.slots.my_timeframe }}"
+          - condition: template
+            value_template: "{{ 'watermelon' in trigger.slots.my_timeframe }}"
+          - condition: template
+            value_template: "{{ 'overnight' in trigger.slots.my_timeframe }}"
+          - condition: template
+            value_template: "{{ 'tonight' in trigger.slots.my_timeframe }}"
+          - condition: template
+            value_template: "{{ 'tomorrow' in trigger.slots.my_timeframe }}"
+          - condition: template
+            value_template: "{{ 'the' in trigger.slots.my_timeframe }}"
+    then:
+      - service: weather.get_forecasts
+        target:
+          entity_id: weather.forecast_home
+        data:
+          type: hourly
+        response_variable: my_weather_time
+    else:
+      - service: weather.get_forecasts
+        target:
+          entity_id: weather.forecast_home
+        data:
+          type: daily
+        response_variable: my_weather_time
+  - service: conversation.process
+    metadata: {}
+    data:
+      agent_id: conversation.openai_conversation
+      text: >-
+        You are using Home Assistant and the met integration for weather data.
+        The weather data is: {{ my_weather_time }}. Provide a natural language
+        forecast for {{ trigger.slots.my_timeframe }} indicating trends over the
+        day or night rather than an hourly listing of conditions. Include the
+        temperature, humidity, and precipitation. Convert the precipitation
+        decimal value into a percentage. State any times in AM or PM, omitting
+        minutes. This wil be spoken aloud with text-to-speech so avoid visual
+        formatting like bullets or tables, but speak in a friendly,
+        conversational style.
+    response_variable: chatgpt_response
+  - service: notify.persistent_notification
+    metadata: {}
+    data:
+      title: Test
+      data: {}
+      message: "{{ chatgpt_response.response.speech.plain.speech }}"
+    enabled: false
+  - set_conversation_response: "{{ chatgpt_response.response.speech.plain.speech }}"
+    enabled: true
+mode: single
